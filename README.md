@@ -4,7 +4,7 @@ Plataforma web de acompanhamento psicológico que conecta pacientes a clínicas 
 
 ## Elevator pitch
 
-Para **pacientes que precisam de acompanhamento psicológico** e não sabem onde encontrar atendimento que aceite seu convênio ou que seja pelo SUS, o **MentCare** é uma **plataforma web de saúde mental** que reúne busca de clínicas, agendamento e prontuário em um só lugar. Diferente de **ligar clínica por clínica e carregar o histórico em papel ou em sistemas isolados**, o nosso **mostra na hora quem atende o paciente e mantém o histórico acessível ao paciente e ao profissional que o acompanha**.
+Para **pacientes que precisam de acompanhamento psicológico** e não sabem onde encontrar atendimento que aceite seu convênio ou que seja pelo SUS, o **MentCare** é uma **plataforma web de saúde mental** que reúne busca de clínicas, agendamentos e prontuário em um só lugar. Diferente de **ligar clínica por clínica e carregar o histórico em papel ou em sistemas isolados**, o nosso **mostra na hora quem atende o paciente e mantém o histórico acessível ao paciente e ao profissional que o acompanha**.
 
 ## Problema
 
