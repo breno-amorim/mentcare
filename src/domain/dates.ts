@@ -17,3 +17,8 @@ export function addDays(from: Date, days: number): string {
   const d = new Date(from.getFullYear(), from.getMonth(), from.getDate() + days)
   return toLocalDateString(d)
 }
+
+/** Exibe uma data YYYY-MM-DD no formato brasileiro. */
+export function formatDate(date: string): string {
+  return date ? new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR') : '—'
+}

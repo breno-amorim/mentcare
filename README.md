@@ -102,11 +102,23 @@ npm run lint       # lint (oxlint)
 npm run build      # build de produção em dist/
 ```
 
+### Contas de demonstração
+
+Senha de todas: `mentcare123` (paciente `mariana@email.com`, profissional `ana@mentcare.com`, gestor `gestao@mentcare.com`). Também é possível criar uma conta de paciente. Os dados ficam no `localStorage` do navegador (protótipo); use "Reiniciar dados" no menu para restaurar.
+
 ### Estrutura
 
 ```
-src/domain/   regras puras e testadas (CPF, política de 24h, datas locais)
-legacy/       protótipo V1 em HTML único (referência; rodar com python legacy/serve.py)
+src/domain/    regras puras e testadas (CPF, política de 24h, agendamento, busca, senha PBKDF2)
+src/services/  camada de dados + autorização por papel (hoje localStorage; será trocada pelo Supabase)
+src/app/       provedores (auth, toast), layout e guardas de rota
+src/features/  telas por perfil: auth, patient, professional, manager, shared
+legacy/        protótipo V1 em HTML único (referência; rodar com python legacy/serve.py)
 ```
 
-Stack: React + TypeScript (strict) + Vite + Vitest. Backend planejado: Supabase (Auth, Postgres, Row Level Security).
+### Segurança (estado atual)
+
+- Senhas guardadas só como hash PBKDF2 com salt; mensagem de erro única no login.
+- Toda ação nos serviços relê o usuário e confere papel e propriedade (paciente só vê as próprias consultas e prontuário; profissional só os registros que criou; gestor só a própria clínica).
+- Prontuário é append-only: evolução não é editada nem apagada, correções entram como adendo datado.
+- **Limite do protótipo:** a autorização roda no navegador e os dados ficam no `localStorage`, então não protege nada de verdade. A proteção real virá com Supabase Auth + Row Level Security. Não use dados reais de saúde.
