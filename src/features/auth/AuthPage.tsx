@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../../app/AuthContext'
 import { ErrorBox, Field } from '../../components/ui'
-import { isValidCpf } from '../../domain/cpf'
+import { formatCpf, isValidCpf } from '../../domain/cpf'
 import { MIN_PASSWORD_LENGTH } from '../../domain/password'
 import { INSURANCES } from '../../domain/types'
 import { getBackend } from '../../data/backend'
@@ -71,6 +71,7 @@ function RegisterForm() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [confirmEmail, setConfirmEmail] = useState('')
+  const [cpf, setCpf] = useState('')
 
   const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -78,7 +79,7 @@ function RegisterForm() {
     const text = (k: string) => String(f.get(k) ?? '')
     setError('')
     if (!isValidCpf(text('cpf'))) {
-      setError('CPF inválido. Confira os números informados.')
+      setError('CPF inválido: os dígitos verificadores não conferem. Confira os 11 números.')
       return
     }
     setBusy(true)
@@ -131,6 +132,9 @@ function RegisterForm() {
               placeholder="000.000.000-00"
               required
               inputMode="numeric"
+              autoComplete="off"
+              value={cpf}
+              onChange={(e) => setCpf(formatCpf(e.target.value))}
             />
           </Field>
           <Field label="Data de nascimento" htmlFor="birth">
