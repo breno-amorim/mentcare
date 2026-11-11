@@ -4,19 +4,20 @@ import { useToast } from '../../app/ToastContext'
 import { Empty, ErrorBox, Field, PageHeading } from '../../components/ui'
 import { Modal } from '../../components/Modal'
 import { formatDate } from '../../domain/dates'
+import { act } from '../../data/backend'
+import { recordsFor } from '../../data/selectors'
+import { useData } from '../../data/snapshot'
 import { errorMessage } from '../../services/errors'
-import { addAddendum, listRecords } from '../../services/records'
-import { useDb } from '../../services/store'
 
 /** Prontuário: o paciente lê os seus; o profissional lê e complementa (por adendo) os que registrou. */
 export function RecordsPage() {
   const user = useUser()
-  const db = useDb()
+  const db = useData()
   const toast = useToast()
   const [addendumFor, setAddendumFor] = useState<string | null>(null)
   const [error, setError] = useState('')
 
-  const rows = listRecords(user).sort((a, b) => b.date.localeCompare(a.date))
+  const rows = recordsFor(db, user).sort((a, b) => b.date.localeCompare(a.date))
   const isPatient = user.role === 'patient'
   const name = (id: string) => db.users.find((u) => u.id === id)?.name ?? ''
 
@@ -25,11 +26,12 @@ export function RecordsPage() {
     setError('')
   }
 
-  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!addendumFor) return
+    const text = String(new FormData(e.currentTarget).get('text') ?? '')
     try {
-      addAddendum(user.id, addendumFor, String(new FormData(e.currentTarget).get('text') ?? ''))
+      await act((b) => b.addAddendum(addendumFor, text))
       toast('Adendo incluído no prontuário.')
       close()
     } catch (err) {

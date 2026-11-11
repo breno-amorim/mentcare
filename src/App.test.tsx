@@ -5,7 +5,9 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import App from './App'
 import { AuthProvider } from './app/AuthContext'
 import { ToastProvider } from './app/ToastContext'
-import type { Role } from './domain/types'
+import { setBackend } from './data/backend'
+import { createMemoryBackend } from './data/memoryBackend'
+import { clearSnapshot } from './data/snapshot'
 import { resetDb } from './services/store'
 
 function renderApp() {
@@ -20,12 +22,11 @@ function renderApp() {
   )
 }
 
-async function signIn(email: string, role: Role, password = 'mentcare123') {
+async function signIn(email: string, password = 'mentcare123') {
   const user = userEvent.setup()
   renderApp()
   await user.type(await screen.findByLabelText('E-mail'), email)
   await user.type(screen.getByLabelText('Senha'), password)
-  await user.selectOptions(screen.getByLabelText('Perfil de acesso'), role)
   await user.click(screen.getByRole('button', { name: /entrar na plataforma/i }))
   return user
 }
@@ -37,13 +38,15 @@ async function goTo(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
 }
 
 beforeEach(() => {
+  setBackend(createMemoryBackend())
+  clearSnapshot()
   resetDb()
 })
 
 describe('acesso', () => {
   it('mostra erro genérico para senha incorreta e não entra', async () => {
-    await signIn('mariana@email.com', 'patient', 'senha-errada')
-    expect(await screen.findByRole('alert')).toHaveTextContent('E-mail, senha ou perfil inválidos.')
+    await signIn('mariana@email.com', 'senha-errada')
+    expect(await screen.findByRole('alert')).toHaveTextContent('E-mail ou senha inválidos.')
     expect(screen.queryByText(/Olá, Mariana/)).not.toBeInTheDocument()
   })
 
@@ -76,7 +79,7 @@ describe('acesso', () => {
 
 describe('paciente', () => {
   it('busca uma clínica e agenda uma consulta', async () => {
-    const user = await signIn('mariana@email.com', 'patient')
+    const user = await signIn('mariana@email.com')
     expect(await screen.findByText(/Olá, Mariana/)).toBeInTheDocument()
 
     await goTo(user, /Buscar clínicas/)
@@ -90,7 +93,7 @@ describe('paciente', () => {
   })
 
   it('filtra por SUS e mostra só clínicas que aceitam SUS', async () => {
-    const user = await signIn('mariana@email.com', 'patient')
+    const user = await signIn('mariana@email.com')
     await goTo(user, /Buscar clínicas/)
     await user.clear(screen.getByLabelText('Cidade'))
     await user.selectOptions(screen.getByLabelText('Convênio / modalidade'), 'SUS')
@@ -101,7 +104,7 @@ describe('paciente', () => {
   })
 
   it('não acessa rotas de outro perfil', async () => {
-    await signIn('mariana@email.com', 'patient')
+    await signIn('mariana@email.com')
     await screen.findByText(/Olá, Mariana/)
     window.location.hash = '#/agenda'
     await waitFor(() => expect(window.location.hash).toBe('#/'))
@@ -114,7 +117,7 @@ describe('paciente', () => {
 
 describe('profissional', () => {
   it('registra a evolução e a consulta passa a realizada', async () => {
-    const user = await signIn('ana@mentcare.com', 'professional')
+    const user = await signIn('ana@mentcare.com')
     await goTo(user, /Minha agenda/)
     await user.click(await screen.findByRole('button', { name: 'Registrar evolução' }))
     await user.type(
@@ -129,7 +132,7 @@ describe('profissional', () => {
   })
 
   it('adiciona adendo sem alterar o registro original', async () => {
-    const user = await signIn('ana@mentcare.com', 'professional')
+    const user = await signIn('ana@mentcare.com')
     await goTo(user, /Prontuários/)
     const original = await screen.findByText(/Primeira sessão \(dado fictício\)/)
     await user.click(screen.getByRole('button', { name: 'Adicionar adendo' }))
@@ -140,7 +143,7 @@ describe('profissional', () => {
   })
 
   it('profissional de outra clínica não vê o prontuário da Ana', async () => {
-    await signIn('rafael@mentcare.com', 'professional')
+    await signIn('rafael@mentcare.com')
     await userEvent.click(await screen.findByRole('link', { name: /Prontuários/ }))
     expect(await screen.findByText('Nenhum registro disponível')).toBeInTheDocument()
   })
@@ -148,7 +151,7 @@ describe('profissional', () => {
 
 describe('gestor', () => {
   it('cadastra profissional com senha própria', async () => {
-    const user = await signIn('gestao@mentcare.com', 'manager')
+    const user = await signIn('gestao@mentcare.com')
     await goTo(user, /Profissionais/)
     await user.click(await screen.findByRole('button', { name: '+ Adicionar profissional' }))
     const dialog = screen.getByRole('dialog')
@@ -160,7 +163,7 @@ describe('gestor', () => {
   })
 
   it('gestor não vê prontuários', async () => {
-    await signIn('gestao@mentcare.com', 'manager')
+    await signIn('gestao@mentcare.com')
     await screen.findByText('Painel da clínica')
     expect(screen.queryByRole('link', { name: /Prontuário/ })).not.toBeInTheDocument()
   })

@@ -1,7 +1,7 @@
 import { isValidCpf, normalizeCpf } from '../domain/cpf'
 import { toLocalDateString } from '../domain/dates'
 import { hashPassword, validatePassword, verifyPassword } from '../domain/password'
-import type { Role, User } from '../domain/types'
+import type { RegisterInput, Role, StoredUser } from '../domain/types'
 import { AppError } from './errors'
 import { newId } from './guards'
 import { getDb, updateDb } from './store'
@@ -26,7 +26,7 @@ function setSession(id: string | null): void {
   }
 }
 
-export async function login(email: string, password: string, role: Role): Promise<User> {
+export async function login(email: string, password: string, role: Role): Promise<StoredUser> {
   const normalized = email.trim().toLowerCase()
   const user = getDb().users.find((u) => u.email.toLowerCase() === normalized && u.role === role)
   // Mensagem única para não revelar se o e-mail existe.
@@ -41,17 +41,7 @@ export function logout(): void {
   setSession(null)
 }
 
-export interface RegisterInput {
-  name: string
-  cpf: string
-  birth: string
-  email: string
-  password: string
-  insurance: string
-  city: string
-}
-
-export async function registerPatient(input: RegisterInput, now = new Date()): Promise<User> {
+export async function registerPatient(input: RegisterInput, now = new Date()): Promise<StoredUser> {
   const name = input.name.trim()
   const email = input.email.trim().toLowerCase()
   const cpf = normalizeCpf(input.cpf)
@@ -65,7 +55,7 @@ export async function registerPatient(input: RegisterInput, now = new Date()): P
   if (getDb().users.some((u) => u.cpf === cpf || u.email.toLowerCase() === email))
     throw new AppError('CPF ou e-mail já cadastrado.')
 
-  const user: User = {
+  const user: StoredUser = {
     id: newId(),
     role: 'patient',
     name,

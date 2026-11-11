@@ -1,34 +1,80 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
-import type { Role, User } from '../domain/types'
-import * as auth from '../services/auth'
-import { useDb } from '../services/store'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
+import { endSession, getBackend, refreshData } from '../data/backend'
+import { useData } from '../data/snapshot'
+import type { RegisterInput, User } from '../domain/types'
 
 interface AuthValue {
   user: User | null
-  signIn: (email: string, password: string, role: Role) => Promise<void>
-  signUp: (input: auth.RegisterInput) => Promise<void>
-  signOut: () => void
+  /** true enquanto a sessão anterior (se houver) está sendo restaurada. */
+  loading: boolean
+  signIn: (email: string, password: string) => Promise<void>
+  /** 'confirm' = falta confirmar o e-mail antes de entrar. */
+  signUp: (input: RegisterInput) => Promise<'ok' | 'confirm'>
+  signOut: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [userId, setUserId] = useState<string | null>(auth.getSessionUserId)
-  const db = useDb()
-  const user = useMemo(() => db.users.find((u) => u.id === userId) ?? null, [db.users, userId])
+  const [sessionUser, setSessionUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
+  const data = useData()
 
-  const signIn = useCallback(async (email: string, password: string, role: Role) => {
-    setUserId((await auth.login(email, password, role)).id)
-  }, [])
-  const signUp = useCallback(async (input: auth.RegisterInput) => {
-    setUserId((await auth.registerPatient(input)).id)
-  }, [])
-  const signOut = useCallback(() => {
-    auth.logout()
-    setUserId(null)
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const restored = await getBackend().restoreSession()
+        if (restored) await refreshData()
+        if (alive) setSessionUser(restored)
+      } catch {
+        if (alive) setSessionUser(null)
+      } finally {
+        if (alive) setLoading(false)
+      }
+    })()
+    return () => {
+      alive = false
+    }
   }, [])
 
-  const value = useMemo(() => ({ user, signIn, signUp, signOut }), [user, signIn, signUp, signOut])
+  // Sempre usa a versão mais recente do usuário (ex.: gestor que acabou de criar a clínica).
+  const user = useMemo(
+    () => (sessionUser ? (data.users.find((u) => u.id === sessionUser.id) ?? sessionUser) : null),
+    [sessionUser, data.users],
+  )
+
+  const signIn = useCallback(async (email: string, password: string) => {
+    const u = await getBackend().signIn(email, password)
+    await refreshData()
+    setSessionUser(u)
+  }, [])
+
+  const signUp = useCallback(async (input: RegisterInput) => {
+    const u = await getBackend().signUp(input)
+    if (!u) return 'confirm' as const
+    await refreshData()
+    setSessionUser(u)
+    return 'ok' as const
+  }, [])
+
+  const signOut = useCallback(async () => {
+    await endSession()
+    setSessionUser(null)
+  }, [])
+
+  const value = useMemo(
+    () => ({ user, loading, signIn, signUp, signOut }),
+    [user, loading, signIn, signUp, signOut],
+  )
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

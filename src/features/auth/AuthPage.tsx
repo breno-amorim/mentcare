@@ -2,11 +2,11 @@ import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../../app/AuthContext'
 import { ErrorBox, Field } from '../../components/ui'
+import { isValidCpf } from '../../domain/cpf'
 import { MIN_PASSWORD_LENGTH } from '../../domain/password'
-import { INSURANCES, ROLE_LABEL, type Role } from '../../domain/types'
+import { INSURANCES } from '../../domain/types'
+import { getBackend } from '../../data/backend'
 import { errorMessage } from '../../services/errors'
-
-const ROLES: Role[] = ['patient', 'professional', 'manager']
 
 function LoginForm() {
   const { signIn } = useAuth()
@@ -19,11 +19,7 @@ function LoginForm() {
     setBusy(true)
     setError('')
     try {
-      await signIn(
-        String(form.get('email')),
-        String(form.get('password')),
-        form.get('role') as Role,
-      )
+      await signIn(String(form.get('email')), String(form.get('password')))
     } catch (err) {
       setError(errorMessage(err))
       setBusy(false)
@@ -54,25 +50,18 @@ function LoginForm() {
             autoComplete="current-password"
           />
         </Field>
-        <Field label="Perfil de acesso" htmlFor="role">
-          <select id="role" name="role" defaultValue="patient">
-            {ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r === 'manager' ? 'Gestor da clínica' : ROLE_LABEL[r]}
-              </option>
-            ))}
-          </select>
-        </Field>
         <ErrorBox message={error} />
         <button className="btn" style={{ width: '100%' }} disabled={busy}>
           {busy ? 'Entrando…' : 'Entrar na plataforma'}
         </button>
       </form>
-      <div className="notice">
-        <b>Contas de demonstração</b> (senha <b>mentcare123</b>)
-        <br />
-        Paciente: mariana@email.com · Profissional: ana@mentcare.com · Gestor: gestao@mentcare.com
-      </div>
+      {getBackend().isDemo && (
+        <div className="notice">
+          <b>Contas de demonstração</b> (senha <b>mentcare123</b>)
+          <br />
+          Paciente: mariana@email.com · Profissional: ana@mentcare.com · Gestor: gestao@mentcare.com
+        </div>
+      )}
     </>
   )
 }
@@ -81,15 +70,20 @@ function RegisterForm() {
   const { signUp } = useAuth()
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [confirmEmail, setConfirmEmail] = useState('')
 
   const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const f = new FormData(e.currentTarget)
     const text = (k: string) => String(f.get(k) ?? '')
-    setBusy(true)
     setError('')
+    if (!isValidCpf(text('cpf'))) {
+      setError('CPF inválido. Confira os números informados.')
+      return
+    }
+    setBusy(true)
     try {
-      await signUp({
+      const result = await signUp({
         name: text('name'),
         cpf: text('cpf'),
         birth: text('birth'),
@@ -98,10 +92,26 @@ function RegisterForm() {
         insurance: text('insurance'),
         city: text('city'),
       })
+      if (result === 'confirm') {
+        setConfirmEmail(text('email'))
+        setBusy(false)
+      }
     } catch (err) {
       setError(errorMessage(err))
       setBusy(false)
     }
+  }
+
+  if (confirmEmail) {
+    return (
+      <>
+        <h2>Confirme seu e-mail</h2>
+        <div className="notice" role="status">
+          Enviamos um link de confirmação para <b>{confirmEmail}</b>. Abra a mensagem, clique no
+          link e depois entre na plataforma.
+        </div>
+      </>
+    )
   }
 
   return (

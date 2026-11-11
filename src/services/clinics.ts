@@ -1,6 +1,6 @@
 import { toLocalDateString, addDays } from '../domain/dates'
 import { hashPassword, validatePassword } from '../domain/password'
-import type { Clinic, Rating, Specialty, User } from '../domain/types'
+import type { Clinic, ClinicInput, Rating, Specialty, StoredUser, User } from '../domain/types'
 import { SPECIALTIES } from '../domain/types'
 import { AppError } from './errors'
 import { newId, requireRole } from './guards'
@@ -47,14 +47,6 @@ export function rateAppointment(
   return rating
 }
 
-export interface ClinicInput {
-  name: string
-  city: string
-  address: string
-  insurance: string
-  specialties: string
-}
-
 /** Cria a clínica do gestor ou edita a que ele já administra (nunca a de outro gestor). */
 export function saveClinic(actorId: string, input: ClinicInput): Clinic {
   const manager = requireRole(actorId, 'manager')
@@ -96,7 +88,7 @@ export function listProfessionals(manager: User): User[] {
 export async function addProfessional(
   actorId: string,
   input: { name: string; email: string; specialty: Specialty; password: string },
-): Promise<User> {
+): Promise<StoredUser> {
   const manager = requireRole(actorId, 'manager')
   if (!manager.clinicId) throw new AppError('Cadastre a clínica antes de adicionar profissionais.')
   const email = input.email.trim().toLowerCase()
@@ -107,7 +99,7 @@ export async function addProfessional(
   if (passwordError) throw new AppError(passwordError)
   if (getDb().users.some((u) => u.email.toLowerCase() === email))
     throw new AppError('Este e-mail já está cadastrado.')
-  const professional: User = {
+  const professional: StoredUser = {
     id: newId(),
     role: 'professional',
     name: input.name.trim(),

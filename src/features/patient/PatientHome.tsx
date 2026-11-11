@@ -2,16 +2,16 @@ import { Link } from 'react-router-dom'
 import { useUser } from '../../app/AuthContext'
 import { Empty, PageHeading, Stat } from '../../components/ui'
 import { addDays } from '../../domain/dates'
-import { listAppointments } from '../../services/appointments'
-import { useDb } from '../../services/store'
+import { appointmentsFor } from '../../data/selectors'
+import { useData } from '../../data/snapshot'
 import { useNow } from '../../app/useNow'
 import { AppointmentCard } from '../shared/AppointmentCard'
 
 export function PatientHome() {
   const user = useUser()
-  const db = useDb()
+  const db = useData()
   const now = useNow()
-  const mine = listAppointments(user)
+  const mine = appointmentsFor(db, user)
   const upcoming = mine
     .filter((a) => a.status === 'scheduled')
     .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))

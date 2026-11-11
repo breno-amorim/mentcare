@@ -6,23 +6,23 @@ import { Empty, ErrorBox, Field, PageHeading, StatusPill } from '../../component
 import { Modal } from '../../components/Modal'
 import { formatDate } from '../../domain/dates'
 import type { Appointment } from '../../domain/types'
-import { listAppointments } from '../../services/appointments'
+import { act } from '../../data/backend'
+import { appointmentsFor, recordsFor } from '../../data/selectors'
+import { useData } from '../../data/snapshot'
 import { errorMessage } from '../../services/errors'
-import { listRecords, saveRecord } from '../../services/records'
-import { useDb } from '../../services/store'
 
 export function AgendaPage() {
   const user = useUser()
-  const db = useDb()
+  const db = useData()
   const toast = useToast()
   const [recording, setRecording] = useState<Appointment | null>(null)
   const [error, setError] = useState('')
 
-  const list = listAppointments(user)
+  const list = appointmentsFor(db, user)
     .filter((a) => a.status !== 'cancelled')
     .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
   // Apenas as evoluções que ESTE profissional registrou (nunca as de outros).
-  const ownRecords = listRecords(user)
+  const ownRecords = recordsFor(db, user)
   const lastNote = (patientId: string) =>
     ownRecords
       .filter((r) => r.patientId === patientId)
@@ -33,16 +33,18 @@ export function AgendaPage() {
     setError('')
   }
 
-  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!recording) return
     const f = new FormData(e.currentTarget)
     try {
-      saveRecord(user.id, {
-        appointmentId: recording.id,
-        text: String(f.get('text') ?? ''),
-        hypothesis: String(f.get('hypothesis') ?? ''),
-      })
+      await act((b) =>
+        b.saveRecord({
+          appointmentId: recording.id,
+          text: String(f.get('text') ?? ''),
+          hypothesis: String(f.get('hypothesis') ?? ''),
+        }),
+      )
       toast('Evolução registrada e consulta marcada como realizada.')
       close()
     } catch (err) {

@@ -1,15 +1,13 @@
 import { Link } from 'react-router-dom'
 import { useUser } from '../../app/AuthContext'
 import { PageHeading, Stat } from '../../components/ui'
-import { averageRating } from '../../domain/booking'
-import { listAppointments } from '../../services/appointments'
-import { listProfessionals, ratingsOf } from '../../services/clinics'
-import { useDb } from '../../services/store'
+import { appointmentsFor, clinicRating, professionalsOf } from '../../data/selectors'
+import { useData } from '../../data/snapshot'
 
 export function ManagerHome() {
   const user = useUser()
-  useDb()
-  const avg = user.clinicId ? averageRating(ratingsOf(user.clinicId)) : 0
+  const data = useData()
+  const avg = user.clinicId ? clinicRating(data, user.clinicId) : 0
 
   return (
     <>
@@ -19,8 +17,8 @@ export function ManagerHome() {
         subtitle="Gerencie profissionais, dados do estabelecimento e atendimentos."
       />
       <div className="grid stats">
-        <Stat label="Profissionais" value={listProfessionals(user).length} icon="♙" />
-        <Stat label="Consultas" value={listAppointments(user).length} icon="▣" />
+        <Stat label="Profissionais" value={professionalsOf(data, user.clinicId).length} icon="♙" />
+        <Stat label="Consultas" value={appointmentsFor(data, user).length} icon="▣" />
         <Stat label="Avaliação média" value={avg.toFixed(1)} icon="★" />
       </div>
       <div className="card">

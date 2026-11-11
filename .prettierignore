@@ -2,3 +2,5 @@ dist
 coverage
 legacy
 package-lock.json
+.claude
+supabase/migrations

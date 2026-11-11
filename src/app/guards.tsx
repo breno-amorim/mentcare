@@ -3,9 +3,10 @@ import { Navigate, Outlet } from 'react-router-dom'
 import type { Role } from '../domain/types'
 import { useAuth } from './AuthContext'
 
-/** Exige usuário logado. A decisão real de autorização é sempre refeita nos serviços/banco. */
+/** Exige usuário logado. A decisão real de autorização é sempre refeita no servidor (RLS). */
 export function RequireAuth() {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
+  if (loading) return <p className="empty">Carregando…</p>
   return user ? <Outlet /> : <Navigate to="/entrar" replace />
 }
 

@@ -4,18 +4,17 @@ import { Empty, Field, PageHeading } from '../../components/ui'
 import {
   ALL_INSURANCES,
   ALL_SPECIALTIES,
-  averageRating,
   filterClinics,
   type ClinicFilters,
 } from '../../domain/booking'
 import { INSURANCES, SPECIALTIES } from '../../domain/types'
-import { ratingsOf } from '../../services/clinics'
-import { useDb } from '../../services/store'
+import { clinicRating } from '../../data/selectors'
+import { useData } from '../../data/snapshot'
 import { BookingModal } from './BookingModal'
 
 export function SearchPage() {
   const user = useUser()
-  const db = useDb()
+  const db = useData()
   const initial: ClinicFilters = {
     query: '',
     city: user.city ?? '',
@@ -26,7 +25,7 @@ export function SearchPage() {
   const [applied, setApplied] = useState(initial)
   const [bookingClinicId, setBookingClinicId] = useState<string | null>(null)
 
-  const avg = (id: string) => averageRating(ratingsOf(id))
+  const avg = (id: string) => clinicRating(db, id)
   const list = filterClinics(db.clinics, applied, avg)
   const set = (key: keyof ClinicFilters) => (value: string) =>
     setDraft((d) => ({ ...d, [key]: value }))
