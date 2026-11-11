@@ -48,6 +48,22 @@ where id = (select id from auth.users where email = 'profissional@exemplo.com');
 O fluxo definitivo será um convite por e-mail feito por uma Edge Function (a única que usa a
 `service_role`, guardada só nos segredos do Supabase).
 
+## Bloqueio após 3 senhas erradas (#18)
+
+| Onde                  | Como funciona                                                                               | Estado                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Modo demonstração     | `src/services/auth.ts`: 3 senhas erradas bloqueiam o e-mail por 15 minutos                  | Ativo                                                                  |
+| Supabase (servidor)   | `optional/password_lockout_hook.sql`: gancho _Password Verification Hook_ com a mesma regra | **Pronto, não ativado**: o gancho só existe nos planos Team/Enterprise |
+| Supabase (plano Free) | Limite de tentativas por IP do próprio Supabase Auth; o app mostra "Muitas tentativas"      | Ativo                                                                  |
+
+O bloqueio precisa ser no servidor: um contador só na tela é contornado chamando a API de login
+direto. Enquanto o projeto estiver no plano Free, a proteção por conta não existe no Supabase; para
+reforçar sem mudar de plano, ative **CAPTCHA** em Authentication > Attack Protection.
+
+Para ativar (plano Team+): rode `optional/password_lockout_hook.sql` no SQL Editor e, em
+Authentication > Auth Hooks, aponte _Password Verification Attempt_ para
+`public.hook_password_verification_attempt`.
+
 ## Testes
 
 `supabase/tests/rls.test.ts` aplica as migrações num Postgres real (PGlite) e verifica as políticas

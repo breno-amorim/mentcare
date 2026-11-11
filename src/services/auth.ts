@@ -1,8 +1,15 @@
 import { isValidCpf, normalizeCpf } from '../domain/cpf'
 import { toLocalDateString } from '../domain/dates'
-import { emailError } from '../domain/email'
+import { emailError, normalizeEmail } from '../domain/email'
 import { hashPassword, validatePassword, verifyPassword } from '../domain/password'
-import type { RegisterInput, Role, StoredUser } from '../domain/types'
+import {
+  isLocked,
+  lockedMessage,
+  registerFailure,
+  remainingAttempts,
+  wrongPasswordMessage,
+} from '../domain/lockout'
+import type { RegisterInput, StoredUser } from '../domain/types'
 import { AppError } from './errors'
 import { newId } from './guards'
 import { getDb, updateDb } from './store'
@@ -26,13 +33,39 @@ function setSession(id: string | null): void {
   }
 }
 
-export async function login(email: string, password: string, role: Role): Promise<StoredUser> {
-  const normalized = email.trim().toLowerCase()
-  const user = getDb().users.find((u) => u.email.toLowerCase() === normalized && u.role === role)
-  // Mensagem única para não revelar se o e-mail existe.
-  const invalid = new AppError('E-mail, senha ou perfil inválidos.')
-  if (!user) throw invalid
-  if (!(await verifyPassword(password, user.passHash))) throw invalid
+/**
+ * Login com bloqueio: após 3 senhas erradas o e-mail fica bloqueado por 15 minutos.
+ * A contagem é por e-mail (existente ou não), então a resposta não revela se a conta existe.
+ */
+export async function login(
+  email: string,
+  password: string,
+  now = new Date(),
+): Promise<StoredUser> {
+  const key = normalizeEmail(email)
+  const attempts = getDb().loginAttempts?.[key]
+  // Bloqueada: recusa sem nem conferir a senha (nem a correta entra).
+  if (isLocked(attempts, now)) throw new AppError(lockedMessage(attempts!, now))
+
+  const user = getDb().users.find((u) => u.email.toLowerCase() === key)
+  const ok = user ? await verifyPassword(password, user.passHash) : false
+  if (!user || !ok) {
+    const next = registerFailure(attempts, now)
+    updateDb((db) => {
+      db.loginAttempts = { ...db.loginAttempts, [key]: next }
+    })
+    throw new AppError(
+      isLocked(next, now)
+        ? lockedMessage(next, now)
+        : wrongPasswordMessage(remainingAttempts(next, now)),
+    )
+  }
+
+  if (attempts) {
+    updateDb((db) => {
+      if (db.loginAttempts) delete db.loginAttempts[key]
+    })
+  }
   setSession(user.id)
   return user
 }

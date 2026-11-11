@@ -32,15 +32,8 @@ export function createMemoryBackend(): Backend {
     },
 
     async signIn(email, password) {
-      const normalized = email.trim().toLowerCase()
-      const found = getDb().users.find((u) => u.email.toLowerCase() === normalized)
-      // Mensagem única: não revela se o e-mail existe.
-      if (!found) throw new AppError('E-mail ou senha inválidos.')
-      try {
-        return publicUser(await auth.login(email, password, found.role))
-      } catch {
-        throw new AppError('E-mail ou senha inválidos.')
-      }
+      // Regras de senha errada e bloqueio ficam no serviço (mensagens já são seguras).
+      return publicUser(await auth.login(email, password))
     },
 
     async signUp(input) {

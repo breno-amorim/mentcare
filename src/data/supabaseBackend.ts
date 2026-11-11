@@ -99,8 +99,13 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
         password,
       })
       if (error) {
+        const code = (error as { code?: string }).code ?? ''
         if (/not confirmed/i.test(error.message))
           throw new AppError('Confirme seu e-mail antes de entrar (veja a caixa de entrada).')
+        // Bloqueio por conta (gancho do servidor, ver supabase/optional) já vem com mensagem pronta.
+        if (/bloquead/i.test(error.message)) throw new AppError(error.message)
+        if (code === 'over_request_rate_limit' || error.status === 429)
+          throw new AppError('Muitas tentativas de login. Aguarde alguns minutos e tente de novo.')
         throw new AppError('E-mail ou senha inválidos.')
       }
       const user = await loadCurrentUser()

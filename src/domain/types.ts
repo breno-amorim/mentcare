@@ -1,3 +1,5 @@
+import type { LoginAttempts } from './lockout'
+
 export type Role = 'patient' | 'professional' | 'manager'
 export type Specialty = 'Psicologia' | 'Psiquiatria'
 export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled'
@@ -93,6 +95,8 @@ export interface Snapshot {
 export interface Db extends Omit<Snapshot, 'users' | 'ratingSummary'> {
   version: number
   users: StoredUser[]
+  /** Tentativas de login por e-mail (bloqueio após senhas erradas). */
+  loginAttempts?: Record<string, LoginAttempts>
 }
 
 export const ROLE_LABEL: Record<Role, string> = {
