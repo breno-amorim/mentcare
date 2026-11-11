@@ -1,11 +1,11 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HashRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { AuthProvider } from './app/AuthContext'
 import { ToastProvider } from './app/ToastContext'
-import { setBackend } from './data/backend'
+import { getBackend, setBackend } from './data/backend'
 import { createMemoryBackend } from './data/memoryBackend'
 import { clearSnapshot } from './data/snapshot'
 import { resetDb } from './services/store'
@@ -92,6 +92,43 @@ describe('acesso', () => {
     // Ao corrigir um campo, o vermelho dele some.
     await user.type(screen.getByLabelText('Cidade'), 'Santos')
     expect(screen.getByLabelText('Cidade')).toHaveAttribute('aria-invalid', 'false')
+  })
+})
+
+describe('T4 · e-mail inválido é recusado na hora (#17)', () => {
+  it('marca o campo em vermelho ao sair dele, antes de tentar entrar', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await user.type(await screen.findByLabelText('E-mail'), 'mariana@email')
+    await user.tab()
+    expect(screen.getByLabelText('E-mail')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByText('E-mail inválido. Use o formato nome@dominio.com.')).toBeInTheDocument()
+  })
+
+  it('não consulta o servidor quando o e-mail é inválido', async () => {
+    const signIn = vi.spyOn(getBackend(), 'signIn')
+    const user = userEvent.setup()
+    renderApp()
+    await user.type(await screen.findByLabelText('E-mail'), 'mariana@')
+    await user.type(screen.getByLabelText('Senha'), 'mentcare123')
+    await user.click(screen.getByRole('button', { name: /entrar na plataforma/i }))
+    expect(screen.getByLabelText('E-mail')).toHaveAttribute('aria-invalid', 'true')
+    expect(signIn).not.toHaveBeenCalled()
+    expect(screen.queryByText(/Olá, Mariana/)).not.toBeInTheDocument()
+  })
+
+  it('o vermelho some ao corrigir e o login funciona', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    const email = await screen.findByLabelText('E-mail')
+    await user.type(email, 'mariana@email')
+    await user.tab()
+    expect(email).toHaveAttribute('aria-invalid', 'true')
+    await user.type(email, '.com')
+    expect(email).toHaveAttribute('aria-invalid', 'false')
+    await user.type(screen.getByLabelText('Senha'), 'mentcare123')
+    await user.click(screen.getByRole('button', { name: /entrar na plataforma/i }))
+    expect(await screen.findByText(/Olá, Mariana/)).toBeInTheDocument()
   })
 })
 
