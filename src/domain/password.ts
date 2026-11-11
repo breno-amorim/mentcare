@@ -45,7 +45,8 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 export function validatePassword(password: string): string | null {
-  return password.length >= MIN_PASSWORD_LENGTH
-    ? null
-    : `A senha precisa ter ao menos ${MIN_PASSWORD_LENGTH} caracteres.`
+  if (password.length < MIN_PASSWORD_LENGTH)
+    return `A senha precisa ter ao menos ${MIN_PASSWORD_LENGTH} caracteres.`
+  if (!password.trim()) return 'A senha não pode ser formada só por espaços.'
+  return null
 }
