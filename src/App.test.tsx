@@ -132,6 +132,34 @@ describe('T4 · e-mail inválido é recusado na hora (#17)', () => {
   })
 })
 
+describe('T5 · bloqueio após 3 senhas erradas na tela (#18)', () => {
+  it('mostra as tentativas restantes e, na 3ª, o bloqueio; nem a senha certa entra', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    const email = await screen.findByLabelText('E-mail')
+    const password = screen.getByLabelText('Senha')
+    const submit = screen.getByRole('button', { name: /entrar na plataforma/i })
+    await user.type(email, 'mariana@email.com')
+
+    for (const [tentativa, esperado] of [
+      ['errada-1', /Restam 2/],
+      ['errada-2', /Restam 1/],
+      ['errada-3', /Conta bloqueada/],
+    ] as const) {
+      await user.clear(password)
+      await user.type(password, tentativa)
+      await user.click(submit)
+      expect(await screen.findByRole('alert')).toHaveTextContent(esperado)
+    }
+
+    await user.clear(password)
+    await user.type(password, 'mentcare123')
+    await user.click(submit)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Conta bloqueada/)
+    expect(screen.queryByText(/Olá, Mariana/)).not.toBeInTheDocument()
+  })
+})
+
 describe('paciente', () => {
   it('busca uma clínica e agenda uma consulta', async () => {
     const user = await signIn('mariana@email.com')

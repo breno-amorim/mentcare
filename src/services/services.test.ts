@@ -42,6 +42,42 @@ describe('login', () => {
   })
 })
 
+describe('T5 · bloqueio após 3 senhas erradas (#18)', () => {
+  const minutes = (m: number) => new Date(now.getTime() + m * 60_000)
+
+  it('avisa as tentativas restantes e bloqueia na 3ª', async () => {
+    await expect(login('mariana@email.com', 'errada-1', now)).rejects.toThrow('Restam 2')
+    await expect(login('mariana@email.com', 'errada-2', now)).rejects.toThrow('Restam 1')
+    await expect(login('mariana@email.com', 'errada-3', now)).rejects.toThrow('Conta bloqueada')
+  })
+
+  it('bloqueada, recusa até a senha correta; após 15 minutos libera', async () => {
+    for (const p of ['e1', 'e2', 'e3']) await login('mariana@email.com', p, now).catch(() => {})
+    await expect(login('mariana@email.com', 'mentcare123', minutes(14))).rejects.toThrow(
+      'Conta bloqueada',
+    )
+    await expect(login('mariana@email.com', 'mentcare123', minutes(16))).resolves.toBeTruthy()
+  })
+
+  it('login correto zera a contagem', async () => {
+    await login('mariana@email.com', 'e1', now).catch(() => {})
+    await login('mariana@email.com', 'e2', now).catch(() => {})
+    await login('mariana@email.com', 'mentcare123', now)
+    await expect(login('mariana@email.com', 'e3', now)).rejects.toThrow('Restam 2')
+  })
+
+  it('o bloqueio de um e-mail não afeta outra conta', async () => {
+    for (const p of ['e1', 'e2', 'e3']) await login('mariana@email.com', p, now).catch(() => {})
+    await expect(login('ana@mentcare.com', 'mentcare123', now)).resolves.toBeTruthy()
+  })
+
+  it('e-mail inexistente se comporta igual (não revela se a conta existe)', async () => {
+    await expect(login('ninguem@x.com', 'e1', now)).rejects.toThrow('Restam 2')
+    await login('ninguem@x.com', 'e2', now).catch(() => {})
+    await expect(login('ninguem@x.com', 'e3', now)).rejects.toThrow('Conta bloqueada')
+  })
+})
+
 describe('registerPatient', () => {
   const valid = {
     name: 'João Silva',
