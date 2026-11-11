@@ -1,5 +1,6 @@
 import { isValidCpf, normalizeCpf } from '../domain/cpf'
 import { toLocalDateString } from '../domain/dates'
+import { emailError } from '../domain/email'
 import { hashPassword, validatePassword, verifyPassword } from '../domain/password'
 import type { RegisterInput, Role, StoredUser } from '../domain/types'
 import { AppError } from './errors'
@@ -7,7 +8,6 @@ import { newId } from './guards'
 import { getDb, updateDb } from './store'
 
 const SESSION_KEY = 'mentcare_session'
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export function getSessionUserId(): string | null {
   try {
@@ -47,7 +47,8 @@ export async function registerPatient(input: RegisterInput, now = new Date()): P
   const cpf = normalizeCpf(input.cpf)
   if (!name) throw new AppError('Informe o nome completo.')
   if (!isValidCpf(cpf)) throw new AppError('CPF inválido. Confira os números informados.')
-  if (!EMAIL_RE.test(email)) throw new AppError('E-mail inválido.')
+  const emailProblem = emailError(email)
+  if (emailProblem) throw new AppError(emailProblem)
   if (!input.birth || input.birth > toLocalDateString(now))
     throw new AppError('Data de nascimento inválida.')
   const passwordError = validatePassword(input.password)

@@ -1,12 +1,11 @@
 import { isValidCpf } from './cpf'
 import { toLocalDateString } from './dates'
+import { emailError } from './email'
 import { MIN_PASSWORD_LENGTH } from './password'
 import type { RegisterInput } from './types'
 
 export type RegisterField = 'name' | 'cpf' | 'birth' | 'email' | 'password' | 'city'
 export type FieldErrors = Partial<Record<RegisterField, string>>
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /** Regras de senha iguais às configuradas no Supabase Auth. */
 export function passwordChecks(password: string) {
@@ -33,7 +32,8 @@ export function validateRegistration(input: RegisterInput, now = new Date()): Fi
   if (!input.birth) errors.birth = 'Informe a data de nascimento.'
   else if (input.birth > toLocalDateString(now) || input.birth < '1900-01-01')
     errors.birth = 'Data de nascimento inválida.'
-  if (!EMAIL_RE.test(input.email.trim())) errors.email = 'Informe um e-mail válido.'
+  const emailProblem = emailError(input.email)
+  if (emailProblem) errors.email = emailProblem
   const missing = passwordChecks(input.password).filter((c) => !c.ok)
   if (missing.length)
     errors.password = `A senha precisa de: ${missing.map((c) => c.label).join(', ')}.`

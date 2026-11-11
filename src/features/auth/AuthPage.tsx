@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { useAuth } from '../../app/AuthContext'
 import { ErrorBox, Field } from '../../components/ui'
 import { formatCpf } from '../../domain/cpf'
+import { emailError } from '../../domain/email'
 import {
   passwordChecks,
   validateRegistration,
@@ -17,14 +18,20 @@ function LoginForm() {
   const { signIn } = useAuth()
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [email, setEmail] = useState('')
+  const [emailProblem, setEmailProblem] = useState<string | null>(null)
 
   const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const form = new FormData(e.currentTarget)
-    setBusy(true)
     setError('')
+    // E-mail inválido é recusado na hora: nem chega a consultar o servidor.
+    const problem = emailError(email)
+    setEmailProblem(problem)
+    if (problem) return
+    setBusy(true)
     try {
-      await signIn(String(form.get('email')), String(form.get('password')))
+      await signIn(email, String(form.get('password')))
     } catch (err) {
       setError(errorMessage(err))
       setBusy(false)
@@ -35,15 +42,23 @@ function LoginForm() {
     <>
       <h2>Bem-vindo de volta</h2>
       <p className="muted">Entre para continuar seu acompanhamento.</p>
-      <form onSubmit={onSubmit}>
-        <Field label="E-mail" htmlFor="email">
+      <form onSubmit={onSubmit} noValidate>
+        <Field label="E-mail" htmlFor="email" error={emailProblem ?? undefined}>
           <input
             id="email"
             name="email"
             type="email"
-            required
             autoComplete="username"
             placeholder="voce@email.com"
+            value={email}
+            aria-invalid={!!emailProblem}
+            aria-describedby={emailProblem ? 'email-error' : undefined}
+            onChange={(e) => {
+              setEmail(e.target.value)
+              // Depois de apontado o erro, revalida a cada tecla para o vermelho sumir ao corrigir.
+              if (emailProblem) setEmailProblem(emailError(e.target.value))
+            }}
+            onBlur={() => email.trim() && setEmailProblem(emailError(email))}
           />
         </Field>
         <Field label="Senha" htmlFor="password">
@@ -195,6 +210,10 @@ function RegisterForm() {
               aria-invalid={!!fieldErrors.email}
               aria-describedby={describedBy('email', 'remail')}
               onChange={() => clear('email')}
+              onBlur={(e) => {
+                const problem = e.target.value.trim() ? emailError(e.target.value) : null
+                if (problem) setFieldErrors((errs) => ({ ...errs, email: problem }))
+              }}
             />
           </Field>
           <Field label="Senha" htmlFor="rpassword" error={fieldErrors.password}>

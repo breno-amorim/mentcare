@@ -1,4 +1,5 @@
 import { toLocalDateString, addDays } from '../domain/dates'
+import { isValidEmail } from '../domain/email'
 import { hashPassword, validatePassword } from '../domain/password'
 import type { Clinic, ClinicInput, Rating, Specialty, StoredUser, User } from '../domain/types'
 import { SPECIALTIES } from '../domain/types'
@@ -6,7 +7,6 @@ import { AppError } from './errors'
 import { newId, requireRole } from './guards'
 import { getDb, updateDb } from './store'
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const splitList = (value: string) =>
   value
     .split(',')
@@ -93,7 +93,7 @@ export async function addProfessional(
   if (!manager.clinicId) throw new AppError('Cadastre a clínica antes de adicionar profissionais.')
   const email = input.email.trim().toLowerCase()
   if (!input.name.trim()) throw new AppError('Informe o nome do profissional.')
-  if (!EMAIL_RE.test(email)) throw new AppError('E-mail inválido.')
+  if (!isValidEmail(email)) throw new AppError('E-mail inválido. Use o formato nome@dominio.com.')
   if (!SPECIALTIES.includes(input.specialty)) throw new AppError('Especialidade inválida.')
   const passwordError = validatePassword(input.password)
   if (passwordError) throw new AppError(passwordError)
