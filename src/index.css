@@ -593,4 +593,6 @@ a.nav {
 .checklist .no {
   color: var(--red);
 }
-.field{align-content:start}
+.field {
+  align-content: start;
+}
