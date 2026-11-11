@@ -10,7 +10,7 @@ import type {
   Specialty,
   User,
 } from '../domain/types'
-import { AppError } from '../services/errors'
+import { AppError, FieldError } from '../services/errors'
 import type { Backend } from './backend'
 
 const GENERIC = 'Não foi possível concluir a ação. Tente novamente.'
@@ -124,10 +124,39 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
         },
       })
       if (error) {
-        if (/password/i.test(error.message))
-          throw new AppError('Senha fraca: use 8+ caracteres com maiúsculas, minúsculas e números.')
-        // CPF inválido/duplicado falham no gatilho do banco; não revelamos qual.
-        throw new AppError('Não foi possível concluir o cadastro. Confira CPF, e-mail e senha.')
+        if (import.meta.env.DEV) console.warn('[cadastro] erro do Supabase Auth:', error)
+        const code = (error as { code?: string }).code ?? ''
+        switch (code) {
+          case 'weak_password':
+            throw new FieldError(
+              'password',
+              'Senha fraca: use 8+ caracteres com maiúscula, minúscula, número e símbolo.',
+            )
+          case 'email_address_invalid':
+            throw new FieldError('email', 'Este endereço de e-mail não é aceito.')
+          case 'email_address_not_authorized':
+            throw new FieldError(
+              'email',
+              'O servidor de e-mail de testes só envia para membros do projeto. Use um e-mail da equipe ou configure um SMTP próprio.',
+            )
+          case 'user_already_exists':
+          case 'email_exists':
+            throw new FieldError('email', 'Este e-mail já está cadastrado.')
+          case 'over_email_send_rate_limit':
+          case 'over_request_rate_limit':
+            throw new AppError(
+              'Limite de envio de e-mails atingido. Aguarde alguns minutos e tente de novo.',
+            )
+          case 'signup_disabled':
+            throw new AppError('Novos cadastros estão desativados no momento.')
+          case 'unexpected_failure':
+            // O gatilho do banco recusou: CPF inválido ou já usado (não revelamos qual).
+            throw new FieldError('cpf', 'CPF inválido ou já cadastrado.')
+          default:
+            throw new AppError(
+              `Não foi possível concluir o cadastro${code ? ` (código: ${code})` : ''}.`,
+            )
+        }
       }
       // Com confirmação de e-mail ligada não há sessão até o usuário confirmar.
       return data.session ? await loadCurrentUser() : null

@@ -62,12 +62,20 @@ export function Field(props: {
   label: string
   htmlFor: string
   wide?: boolean
+  /** Mensagem de erro: destaca o campo em vermelho e explica o problema. */
+  error?: string
   children: ReactNode
 }) {
+  const cls = ['field', props.wide && 'wide', props.error && 'invalid'].filter(Boolean).join(' ')
   return (
-    <div className={`field${props.wide ? ' wide' : ''}`}>
+    <div className={cls}>
       <label htmlFor={props.htmlFor}>{props.label}</label>
       {props.children}
+      {props.error && (
+        <span className="field-error" id={`${props.htmlFor}-error`} role="alert">
+          {props.error}
+        </span>
+      )}
     </div>
   )
 }

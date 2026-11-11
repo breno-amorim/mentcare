@@ -58,7 +58,7 @@ describe('acesso', () => {
     await user.type(screen.getByLabelText('CPF'), '390.533.447-05')
     await user.type(screen.getByLabelText('Data de nascimento'), '1990-05-20')
     await user.type(screen.getByLabelText('E-mail'), 'joao.teste@email.com')
-    await user.type(screen.getByLabelText(/Senha/), 'senha-forte-1')
+    await user.type(screen.getByLabelText(/^Senha$/), 'Senha-forte-1')
     await user.click(screen.getByRole('button', { name: 'Criar conta' }))
     expect(await screen.findByText(/Olá, João/)).toBeInTheDocument()
   })
@@ -71,9 +71,27 @@ describe('acesso', () => {
     await user.type(screen.getByLabelText('CPF'), '111.111.111-11')
     await user.type(screen.getByLabelText('Data de nascimento'), '1990-05-20')
     await user.type(screen.getByLabelText('E-mail'), 'joao.teste@email.com')
-    await user.type(screen.getByLabelText(/Senha/), 'senha-forte-1')
+    await user.type(screen.getByLabelText(/^Senha$/), 'Senha-forte-1')
     await user.click(screen.getByRole('button', { name: 'Criar conta' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('CPF inválido')
+    expect(await screen.findByText(/dígitos verificadores/)).toBeInTheDocument()
+    expect(screen.getByLabelText('CPF')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('Nome completo')).toHaveAttribute('aria-invalid', 'false')
+  })
+
+  it('destaca em vermelho todos os campos errados e o que falta na senha', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await user.click(await screen.findByRole('tab', { name: 'Criar conta' }))
+    await user.type(screen.getByLabelText(/^Senha$/), 'fraca')
+    await user.clear(screen.getByLabelText('Cidade'))
+    await user.click(screen.getByRole('button', { name: 'Criar conta' }))
+    for (const label of ['Nome completo', 'CPF', 'Data de nascimento', 'E-mail', 'Cidade']) {
+      expect(screen.getByLabelText(label)).toHaveAttribute('aria-invalid', 'true')
+    }
+    expect(screen.getByText(/A senha precisa de: 8 ou mais caracteres/)).toBeInTheDocument()
+    // Ao corrigir um campo, o vermelho dele some.
+    await user.type(screen.getByLabelText('Cidade'), 'Santos')
+    expect(screen.getByLabelText('Cidade')).toHaveAttribute('aria-invalid', 'false')
   })
 })
 
