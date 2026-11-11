@@ -3,13 +3,13 @@ import { useUser } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
 import { ErrorBox, Field, PageHeading } from '../../components/ui'
 import { Modal } from '../../components/Modal'
+import { act } from '../../data/backend'
+import { useData } from '../../data/snapshot'
 import { errorMessage } from '../../services/errors'
-import { saveClinic } from '../../services/clinics'
-import { useDb } from '../../services/store'
 
 export function ClinicPage() {
   const user = useUser()
-  const db = useDb()
+  const db = useData()
   const toast = useToast()
   const [open, setOpen] = useState(false)
   const [error, setError] = useState('')
@@ -20,18 +20,20 @@ export function ClinicPage() {
     setError('')
   }
 
-  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const f = new FormData(e.currentTarget)
     const text = (k: string) => String(f.get(k) ?? '')
     try {
-      saveClinic(user.id, {
-        name: text('name'),
-        city: text('city'),
-        address: text('address'),
-        insurance: text('insurance'),
-        specialties: text('specialties'),
-      })
+      await act((b) =>
+        b.saveClinic({
+          name: text('name'),
+          city: text('city'),
+          address: text('address'),
+          insurance: text('insurance'),
+          specialties: text('specialties'),
+        }),
+      )
       toast('Dados da clínica salvos.')
       close()
     } catch (err) {

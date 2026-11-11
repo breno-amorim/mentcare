@@ -26,19 +26,55 @@ const user = (id: string) => {
 
 describe('login', () => {
   it('aceita a conta de demonstração com a senha correta', async () => {
-    const u = await login('mariana@email.com', 'mentcare123', 'patient')
+    const u = await login('mariana@email.com', 'mentcare123', now)
     expect(u.id).toBe('p1')
   })
-  it('rejeita senha errada e perfil errado com a mesma mensagem', async () => {
-    await expect(login('mariana@email.com', 'errada123', 'patient')).rejects.toThrow(
-      'E-mail, senha ou perfil inválidos.',
+  it('o papel vem da conta, não de uma escolha na tela', async () => {
+    expect((await login('gestao@mentcare.com', 'mentcare123', now)).role).toBe('manager')
+  })
+  it('responde igual para senha errada e para e-mail inexistente', async () => {
+    await expect(login('mariana@email.com', 'errada123', now)).rejects.toThrow(
+      'E-mail ou senha inválidos. Restam 2',
     )
-    await expect(login('mariana@email.com', 'mentcare123', 'manager')).rejects.toThrow(
-      'E-mail, senha ou perfil inválidos.',
+    await expect(login('naoexiste@x.com', 'mentcare123', now)).rejects.toThrow(
+      'E-mail ou senha inválidos. Restam 2',
     )
-    await expect(login('naoexiste@x.com', 'mentcare123', 'patient')).rejects.toThrow(
-      'E-mail, senha ou perfil inválidos.',
+  })
+})
+
+describe('T5 · bloqueio após 3 senhas erradas (#18)', () => {
+  const minutes = (m: number) => new Date(now.getTime() + m * 60_000)
+
+  it('avisa as tentativas restantes e bloqueia na 3ª', async () => {
+    await expect(login('mariana@email.com', 'errada-1', now)).rejects.toThrow('Restam 2')
+    await expect(login('mariana@email.com', 'errada-2', now)).rejects.toThrow('Restam 1')
+    await expect(login('mariana@email.com', 'errada-3', now)).rejects.toThrow('Conta bloqueada')
+  })
+
+  it('bloqueada, recusa até a senha correta; após 15 minutos libera', async () => {
+    for (const p of ['e1', 'e2', 'e3']) await login('mariana@email.com', p, now).catch(() => {})
+    await expect(login('mariana@email.com', 'mentcare123', minutes(14))).rejects.toThrow(
+      'Conta bloqueada',
     )
+    await expect(login('mariana@email.com', 'mentcare123', minutes(16))).resolves.toBeTruthy()
+  })
+
+  it('login correto zera a contagem', async () => {
+    await login('mariana@email.com', 'e1', now).catch(() => {})
+    await login('mariana@email.com', 'e2', now).catch(() => {})
+    await login('mariana@email.com', 'mentcare123', now)
+    await expect(login('mariana@email.com', 'e3', now)).rejects.toThrow('Restam 2')
+  })
+
+  it('o bloqueio de um e-mail não afeta outra conta', async () => {
+    for (const p of ['e1', 'e2', 'e3']) await login('mariana@email.com', p, now).catch(() => {})
+    await expect(login('ana@mentcare.com', 'mentcare123', now)).resolves.toBeTruthy()
+  })
+
+  it('e-mail inexistente se comporta igual (não revela se a conta existe)', async () => {
+    await expect(login('ninguem@x.com', 'e1', now)).rejects.toThrow('Restam 2')
+    await login('ninguem@x.com', 'e2', now).catch(() => {})
+    await expect(login('ninguem@x.com', 'e3', now)).rejects.toThrow('Conta bloqueada')
   })
 })
 
@@ -65,7 +101,7 @@ describe('registerPatient', () => {
     const u = await registerPatient({ ...valid, cpf: '390.533.447-05' }, now)
     expect(u.passHash.startsWith('pbkdf2$')).toBe(true)
     expect(JSON.stringify(getDb())).not.toContain('senha-forte-1')
-    await expect(login('joao@email.com', 'senha-forte-1', 'patient')).resolves.toBeTruthy()
+    await expect(login('joao@email.com', 'senha-forte-1', now)).resolves.toBeTruthy()
   })
 })
 
@@ -193,8 +229,8 @@ describe('gestão da clínica', () => {
       specialty: 'Psicologia',
       password: 'senha-forte-1',
     })
-    await expect(login('novo@x.com', 'mentcare123', 'professional')).rejects.toThrow()
-    await expect(login(p.email, 'senha-forte-1', 'professional')).resolves.toBeTruthy()
+    await expect(login('novo@x.com', 'mentcare123', now)).rejects.toThrow()
+    await expect(login(p.email, 'senha-forte-1', now)).resolves.toBeTruthy()
   })
   it('paciente não gerencia a clínica', () => {
     expect(() => addAvailability('p1', 'd1', '2026-11-20', '09:00', now)).toThrow('permissão')

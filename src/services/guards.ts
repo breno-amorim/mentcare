@@ -1,4 +1,4 @@
-import type { Role, User } from '../domain/types'
+import type { Role, StoredUser } from '../domain/types'
 import { AppError } from './errors'
 import { getDb } from './store'
 
@@ -10,10 +10,10 @@ import { getDb } from './store'
 export function requireRole<R extends Role>(
   actorId: string | undefined,
   role: R,
-): User & { role: R } {
+): StoredUser & { role: R } {
   const user = getDb().users.find((u) => u.id === actorId)
   if (!user || user.role !== role) throw new AppError('Você não tem permissão para esta ação.')
-  return user as User & { role: R }
+  return user as StoredUser & { role: R }
 }
 
 export const newId = (): string => crypto.randomUUID().replace(/-/g, '').slice(0, 12)

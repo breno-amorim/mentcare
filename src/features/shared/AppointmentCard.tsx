@@ -7,17 +7,16 @@ import { canChangeAppointment } from '../../domain/appointment-policy'
 import { freeSlots } from '../../domain/booking'
 import { formatDate } from '../../domain/dates'
 import type { Appointment } from '../../domain/types'
-import { cancelAppointment, rescheduleAppointment } from '../../services/appointments'
-import { rateAppointment } from '../../services/clinics'
+import { act } from '../../data/backend'
+import { useData } from '../../data/snapshot'
 import { errorMessage } from '../../services/errors'
-import { useDb } from '../../services/store'
 import { useNow } from '../../app/useNow'
 
 type View = 'none' | 'details' | 'change' | 'reschedule' | 'rate'
 
 export function AppointmentCard({ appt }: { appt: Appointment }) {
   const user = useUser()
-  const db = useDb()
+  const db = useData()
   const toast = useToast()
   const [view, setView] = useState<View>('none')
   const [error, setError] = useState('')
@@ -33,9 +32,9 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
     appt.status === 'completed' &&
     !db.ratings.some((r) => r.appointmentId === appt.id)
 
-  const run = (action: () => void, success: string) => {
+  const run = async (action: () => Promise<void>, success: string) => {
     try {
-      action()
+      await action()
       toast(success)
       close()
     } catch (e) {
@@ -46,19 +45,29 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
   const onReschedule = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const slotId = String(new FormData(e.currentTarget).get('slot') ?? '')
-    run(() => rescheduleAppointment(user.id, appt.id, slotId), 'Consulta remarcada!')
+    const slot = slots.find((s) => s.id === slotId)
+    if (!slot) {
+      setError('Escolha um horário disponível.')
+      return
+    }
+    void run(
+      () => act((b) => b.rescheduleAppointment(appt.id, slot.date, slot.time)),
+      'Consulta remarcada!',
+    )
   }
 
   const onRate = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const f = new FormData(e.currentTarget)
-    run(
+    void run(
       () =>
-        rateAppointment(user.id, {
-          appointmentId: appt.id,
-          stars: Number(f.get('stars')),
-          comment: String(f.get('comment') ?? ''),
-        }),
+        act((b) =>
+          b.rateAppointment({
+            appointmentId: appt.id,
+            stars: Number(f.get('stars')),
+            comment: String(f.get('comment') ?? ''),
+          }),
+        ),
       'Obrigado pela avaliação!',
     )
   }
@@ -124,8 +133,8 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
                   type="button"
                   className="btn danger"
                   onClick={() =>
-                    run(
-                      () => cancelAppointment(user.id, appt.id),
+                    void run(
+                      () => act((b) => b.cancelAppointment(appt.id)),
                       'Consulta cancelada; horário liberado.',
                     )
                   }

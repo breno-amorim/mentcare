@@ -1,19 +1,17 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useUser } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
 import { ErrorBox, Field } from '../../components/ui'
 import { Modal } from '../../components/Modal'
 import { freeSlots } from '../../domain/booking'
 import { formatDate } from '../../domain/dates'
-import { bookAppointment } from '../../services/appointments'
+import { act } from '../../data/backend'
+import { useData } from '../../data/snapshot'
 import { errorMessage } from '../../services/errors'
-import { useDb } from '../../services/store'
 import { useNow } from '../../app/useNow'
 
 export function BookingModal({ clinicId, onClose }: { clinicId: string; onClose: () => void }) {
-  const user = useUser()
-  const db = useDb()
+  const db = useData()
   const now = useNow()
   const toast = useToast()
   const navigate = useNavigate()
@@ -31,10 +29,12 @@ export function BookingModal({ clinicId, onClose }: { clinicId: string; onClose:
   const times = slots.filter((s) => s.date === activeDate).map((s) => s.time)
   const activeTime = times.includes(time) ? time : (times[0] ?? '')
 
-  const onSubmit = (e: FormEvent) => {
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
     try {
-      bookAppointment(user.id, { clinicId, professionalId, date: activeDate, time: activeTime })
+      await act((b) =>
+        b.bookAppointment({ clinicId, professionalId, date: activeDate, time: activeTime }),
+      )
       toast('Consulta agendada com sucesso!')
       onClose()
       navigate('/consultas')

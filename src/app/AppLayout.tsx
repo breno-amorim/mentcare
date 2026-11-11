@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { ROLE_LABEL, type Role } from '../domain/types'
-import { resetDb } from '../services/store'
+import { getBackend } from '../data/backend'
 import { useAuth, useUser } from './AuthContext'
 
 const MENUS: Record<Role, { to: string; icon: string; label: string }[]> = {
@@ -28,10 +28,11 @@ export function AppLayout() {
   const user = useUser()
   const { signOut } = useAuth()
 
-  const onReset = () => {
+  const backend = getBackend()
+  const onReset = async () => {
     if (confirm('Apagar os dados deste protótipo e restaurar a demonstração?')) {
-      resetDb()
-      signOut()
+      await backend.reset?.()
+      await signOut()
     }
   }
 
@@ -47,7 +48,7 @@ export function AppLayout() {
         <div className="topright">
           <span className="muted">{user.name}</span>
           <span className="pill">{ROLE_LABEL[user.role]}</span>
-          <button type="button" className="btn ghost small" onClick={signOut}>
+          <button type="button" className="btn ghost small" onClick={() => void signOut()}>
             Sair
           </button>
         </div>
@@ -63,14 +64,16 @@ export function AppLayout() {
               </NavLink>
             ))}
             <div className="side-label" style={{ marginTop: 15 }}>
-              Conta de demonstração
+              {backend.isDemo ? 'Conta de demonstração' : 'Conta'}
             </div>
             <NavLink to="/perfil" className={navClass}>
               <span aria-hidden="true">◎</span>Meu perfil
             </NavLink>
-            <button type="button" className="nav" onClick={onReset}>
-              <span aria-hidden="true">↻</span>Reiniciar dados
-            </button>
+            {backend.reset && (
+              <button type="button" className="nav" onClick={() => void onReset()}>
+                <span aria-hidden="true">↻</span>Reiniciar dados
+              </button>
+            )}
           </nav>
           <section className="content">
             <Outlet />

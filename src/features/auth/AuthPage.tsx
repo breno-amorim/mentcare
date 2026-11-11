@@ -2,28 +2,36 @@ import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../../app/AuthContext'
 import { ErrorBox, Field } from '../../components/ui'
-import { MIN_PASSWORD_LENGTH } from '../../domain/password'
-import { INSURANCES, ROLE_LABEL, type Role } from '../../domain/types'
-import { errorMessage } from '../../services/errors'
-
-const ROLES: Role[] = ['patient', 'professional', 'manager']
+import { formatCpf } from '../../domain/cpf'
+import { emailError } from '../../domain/email'
+import {
+  passwordChecks,
+  validateRegistration,
+  type FieldErrors,
+  type RegisterField,
+} from '../../domain/registration'
+import { INSURANCES } from '../../domain/types'
+import { getBackend } from '../../data/backend'
+import { errorMessage, FieldError } from '../../services/errors'
 
 function LoginForm() {
   const { signIn } = useAuth()
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [email, setEmail] = useState('')
+  const [emailProblem, setEmailProblem] = useState<string | null>(null)
 
   const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const form = new FormData(e.currentTarget)
-    setBusy(true)
     setError('')
+    // E-mail inválido é recusado na hora: nem chega a consultar o servidor.
+    const problem = emailError(email)
+    setEmailProblem(problem)
+    if (problem) return
+    setBusy(true)
     try {
-      await signIn(
-        String(form.get('email')),
-        String(form.get('password')),
-        form.get('role') as Role,
-      )
+      await signIn(email, String(form.get('password')))
     } catch (err) {
       setError(errorMessage(err))
       setBusy(false)
@@ -34,15 +42,23 @@ function LoginForm() {
     <>
       <h2>Bem-vindo de volta</h2>
       <p className="muted">Entre para continuar seu acompanhamento.</p>
-      <form onSubmit={onSubmit}>
-        <Field label="E-mail" htmlFor="email">
+      <form onSubmit={onSubmit} noValidate>
+        <Field label="E-mail" htmlFor="email" error={emailProblem ?? undefined}>
           <input
             id="email"
             name="email"
             type="email"
-            required
             autoComplete="username"
             placeholder="voce@email.com"
+            value={email}
+            aria-invalid={!!emailProblem}
+            aria-describedby={emailProblem ? 'email-error' : undefined}
+            onChange={(e) => {
+              setEmail(e.target.value)
+              // Depois de apontado o erro, revalida a cada tecla para o vermelho sumir ao corrigir.
+              if (emailProblem) setEmailProblem(emailError(e.target.value))
+            }}
+            onBlur={() => email.trim() && setEmailProblem(emailError(email))}
           />
         </Field>
         <Field label="Senha" htmlFor="password">
@@ -54,25 +70,18 @@ function LoginForm() {
             autoComplete="current-password"
           />
         </Field>
-        <Field label="Perfil de acesso" htmlFor="role">
-          <select id="role" name="role" defaultValue="patient">
-            {ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r === 'manager' ? 'Gestor da clínica' : ROLE_LABEL[r]}
-              </option>
-            ))}
-          </select>
-        </Field>
         <ErrorBox message={error} />
         <button className="btn" style={{ width: '100%' }} disabled={busy}>
           {busy ? 'Entrando…' : 'Entrar na plataforma'}
         </button>
       </form>
-      <div className="notice">
-        <b>Contas de demonstração</b> (senha <b>mentcare123</b>)
-        <br />
-        Paciente: mariana@email.com · Profissional: ana@mentcare.com · Gestor: gestao@mentcare.com
-      </div>
+      {getBackend().isDemo && (
+        <div className="notice">
+          <b>Contas de demonstração</b> (senha <b>mentcare123</b>)
+          <br />
+          Paciente: mariana@email.com · Profissional: ana@mentcare.com · Gestor: gestao@mentcare.com
+        </div>
+      )}
     </>
   )
 }
@@ -80,64 +89,154 @@ function LoginForm() {
 function RegisterForm() {
   const { signUp } = useAuth()
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [busy, setBusy] = useState(false)
+  const [confirmEmail, setConfirmEmail] = useState('')
+  const [cpf, setCpf] = useState('')
+  const [password, setPassword] = useState('')
+
+  /** Ao corrigir um campo, o vermelho dele some. */
+  const clear = (field: RegisterField) =>
+    setFieldErrors((errs) => {
+      if (!errs[field]) return errs
+      const next = { ...errs }
+      delete next[field]
+      return next
+    })
 
   const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const f = new FormData(e.currentTarget)
     const text = (k: string) => String(f.get(k) ?? '')
-    setBusy(true)
+    const input = {
+      name: text('name'),
+      cpf: text('cpf'),
+      birth: text('birth'),
+      email: text('email'),
+      password: text('password'),
+      insurance: text('insurance'),
+      city: text('city'),
+    }
     setError('')
+    const errors = validateRegistration(input)
+    setFieldErrors(errors)
+    if (Object.keys(errors).length) {
+      setError('Corrija os campos destacados em vermelho.')
+      return
+    }
+    setBusy(true)
     try {
-      await signUp({
-        name: text('name'),
-        cpf: text('cpf'),
-        birth: text('birth'),
-        email: text('email'),
-        password: text('password'),
-        insurance: text('insurance'),
-        city: text('city'),
-      })
+      const result = await signUp(input)
+      if (result === 'confirm') {
+        setConfirmEmail(input.email)
+        setBusy(false)
+      }
     } catch (err) {
-      setError(errorMessage(err))
+      if (err instanceof FieldError) {
+        setFieldErrors({ [err.field]: err.message })
+        setError('Corrija o campo destacado em vermelho.')
+      } else {
+        setError(errorMessage(err))
+      }
       setBusy(false)
     }
   }
+
+  if (confirmEmail) {
+    return (
+      <>
+        <h2>Confirme seu e-mail</h2>
+        <div className="notice" role="status">
+          Enviamos um link de confirmação para <b>{confirmEmail}</b>. Abra a mensagem, clique no
+          link e depois entre na plataforma.
+        </div>
+      </>
+    )
+  }
+
+  const describedBy = (field: RegisterField, id: string) =>
+    fieldErrors[field] ? `${id}-error` : undefined
 
   return (
     <>
       <h2>Crie sua conta</h2>
       <p className="muted">Cadastro para pacientes.</p>
-      <form onSubmit={onSubmit}>
-        <Field label="Nome completo" htmlFor="name">
-          <input id="name" name="name" required autoComplete="name" />
+      <form onSubmit={onSubmit} noValidate>
+        <Field label="Nome completo" htmlFor="name" error={fieldErrors.name}>
+          <input
+            id="name"
+            name="name"
+            autoComplete="name"
+            aria-invalid={!!fieldErrors.name}
+            aria-describedby={describedBy('name', 'name')}
+            onChange={() => clear('name')}
+          />
         </Field>
         <div className="formgrid">
-          <Field label="CPF" htmlFor="cpf">
+          <Field label="CPF" htmlFor="cpf" error={fieldErrors.cpf}>
             <input
               id="cpf"
               name="cpf"
               maxLength={14}
               placeholder="000.000.000-00"
-              required
               inputMode="numeric"
+              autoComplete="off"
+              value={cpf}
+              aria-invalid={!!fieldErrors.cpf}
+              aria-describedby={describedBy('cpf', 'cpf')}
+              onChange={(e) => {
+                setCpf(formatCpf(e.target.value))
+                clear('cpf')
+              }}
             />
           </Field>
-          <Field label="Data de nascimento" htmlFor="birth">
-            <input id="birth" name="birth" type="date" required autoComplete="bday" />
+          <Field label="Data de nascimento" htmlFor="birth" error={fieldErrors.birth}>
+            <input
+              id="birth"
+              name="birth"
+              type="date"
+              autoComplete="bday"
+              aria-invalid={!!fieldErrors.birth}
+              aria-describedby={describedBy('birth', 'birth')}
+              onChange={() => clear('birth')}
+            />
           </Field>
-          <Field label="E-mail" htmlFor="remail">
-            <input id="remail" name="email" type="email" required autoComplete="email" />
+          <Field label="E-mail" htmlFor="remail" error={fieldErrors.email}>
+            <input
+              id="remail"
+              name="email"
+              type="email"
+              autoComplete="email"
+              aria-invalid={!!fieldErrors.email}
+              aria-describedby={describedBy('email', 'remail')}
+              onChange={() => clear('email')}
+              onBlur={(e) => {
+                const problem = e.target.value.trim() ? emailError(e.target.value) : null
+                if (problem) setFieldErrors((errs) => ({ ...errs, email: problem }))
+              }}
+            />
           </Field>
-          <Field label={`Senha (mínimo ${MIN_PASSWORD_LENGTH} caracteres)`} htmlFor="rpassword">
+          <Field label="Senha" htmlFor="rpassword" error={fieldErrors.password}>
             <input
               id="rpassword"
               name="password"
               type="password"
-              minLength={MIN_PASSWORD_LENGTH}
-              required
               autoComplete="new-password"
+              value={password}
+              aria-invalid={!!fieldErrors.password}
+              aria-describedby="rpassword-rules"
+              onChange={(e) => {
+                setPassword(e.target.value)
+                clear('password')
+              }}
             />
+            <ul className="checklist" id="rpassword-rules" aria-label="Requisitos da senha">
+              {passwordChecks(password).map((c) => (
+                <li key={c.id} className={c.ok ? 'ok' : password ? 'no' : 'muted'}>
+                  {c.ok ? '✓' : '•'} {c.label}
+                </li>
+              ))}
+            </ul>
           </Field>
           <Field label="Convênio" htmlFor="insurance">
             <select id="insurance" name="insurance">
@@ -146,8 +245,15 @@ function RegisterForm() {
               ))}
             </select>
           </Field>
-          <Field label="Cidade" htmlFor="city">
-            <input id="city" name="city" defaultValue="Taboão da Serra" required />
+          <Field label="Cidade" htmlFor="city" error={fieldErrors.city}>
+            <input
+              id="city"
+              name="city"
+              defaultValue="Taboão da Serra"
+              aria-invalid={!!fieldErrors.city}
+              aria-describedby={describedBy('city', 'city')}
+              onChange={() => clear('city')}
+            />
           </Field>
         </div>
         <ErrorBox message={error} />
@@ -155,9 +261,6 @@ function RegisterForm() {
           {busy ? 'Criando…' : 'Criar conta'}
         </button>
       </form>
-      <div className="footer">
-        Ao continuar, você concorda com o uso demonstrativo dos dados neste navegador.
-      </div>
     </>
   )
 }

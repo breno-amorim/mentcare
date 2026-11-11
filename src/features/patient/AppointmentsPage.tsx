@@ -1,13 +1,13 @@
 import { useUser } from '../../app/AuthContext'
 import { Empty, PageHeading } from '../../components/ui'
-import { listAppointments } from '../../services/appointments'
-import { useDb } from '../../services/store'
+import { appointmentsFor } from '../../data/selectors'
+import { useData } from '../../data/snapshot'
 import { AppointmentCard } from '../shared/AppointmentCard'
 
 export function AppointmentsPage() {
   const user = useUser()
-  useDb() // reavalia a lista quando o armazenamento muda
-  const list = listAppointments(user).sort((a, b) =>
+  const data = useData()
+  const list = appointmentsFor(data, user).sort((a, b) =>
     (b.date + b.time).localeCompare(a.date + a.time),
   )
 

@@ -5,14 +5,10 @@ import { Empty, ErrorBox, Field, PageHeading } from '../../components/ui'
 import { Modal } from '../../components/Modal'
 import { addDays, formatDate, toLocalDateString } from '../../domain/dates'
 import { SPECIALTIES, type Specialty } from '../../domain/types'
-import {
-  addAvailability,
-  addProfessional,
-  listProfessionals,
-  removeAvailability,
-} from '../../services/clinics'
+import { act, getBackend } from '../../data/backend'
+import { professionalsOf } from '../../data/selectors'
+import { useData } from '../../data/snapshot'
 import { errorMessage } from '../../services/errors'
-import { useDb } from '../../services/store'
 import { useNow } from '../../app/useNow'
 
 function AvailabilityModal({
@@ -22,8 +18,7 @@ function AvailabilityModal({
   professionalId: string
   onClose: () => void
 }) {
-  const user = useUser()
-  const db = useDb()
+  const db = useData()
   const [error, setError] = useState('')
   const professional = db.users.find((u) => u.id === professionalId)
   const slots = db.availability
@@ -31,9 +26,9 @@ function AvailabilityModal({
     .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
   const now = useNow()
 
-  const guard = (action: () => void) => {
+  const guard = async (action: () => Promise<void>) => {
     try {
-      action()
+      await action()
       setError('')
     } catch (e) {
       setError(errorMessage(e))
@@ -44,8 +39,10 @@ function AvailabilityModal({
     e.preventDefault()
     const form = e.currentTarget
     const f = new FormData(form)
-    guard(() => {
-      addAvailability(user.id, professionalId, String(f.get('date')), String(f.get('time')))
+    void guard(async () => {
+      await act((b) =>
+        b.addAvailability(professionalId, String(f.get('date')), String(f.get('time'))),
+      )
       form.reset()
     })
   }
@@ -81,7 +78,7 @@ function AvailabilityModal({
             <button
               type="button"
               className="btn danger small"
-              onClick={() => guard(() => removeAvailability(user.id, s.id))}
+              onClick={() => void guard(() => act((b) => b.removeAvailability(s.id)))}
             >
               Remover
             </button>
@@ -101,12 +98,12 @@ function AvailabilityModal({
 
 export function ProfessionalsPage() {
   const user = useUser()
-  useDb()
+  const data = useData()
   const toast = useToast()
   const [adding, setAdding] = useState(false)
   const [availabilityFor, setAvailabilityFor] = useState<string | null>(null)
   const [error, setError] = useState('')
-  const list = listProfessionals(user)
+  const list = professionalsOf(data, user.clinicId)
 
   const close = () => {
     setAdding(false)
@@ -117,12 +114,14 @@ export function ProfessionalsPage() {
     e.preventDefault()
     const f = new FormData(e.currentTarget)
     try {
-      await addProfessional(user.id, {
-        name: String(f.get('name') ?? ''),
-        email: String(f.get('email') ?? ''),
-        specialty: f.get('specialty') as Specialty,
-        password: String(f.get('password') ?? ''),
-      })
+      await act((b) =>
+        b.addProfessional({
+          name: String(f.get('name') ?? ''),
+          email: String(f.get('email') ?? ''),
+          specialty: f.get('specialty') as Specialty,
+          password: String(f.get('password') ?? ''),
+        }),
+      )
       toast('Profissional cadastrado.')
       close()
     } catch (err) {
@@ -166,7 +165,22 @@ export function ProfessionalsPage() {
         )}
       </div>
 
-      {adding && (
+      {adding && !getBackend().canCreateProfessionals && (
+        <Modal title="Adicionar profissional" onClose={close}>
+          <div className="warning">
+            O cadastro de profissionais por convite de e-mail será habilitado na próxima etapa. Por
+            enquanto, o administrador do projeto promove a conta do profissional (veja
+            supabase/README.md).
+          </div>
+          <div className="modalfoot">
+            <button type="button" className="btn ghost" onClick={close}>
+              Fechar
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {adding && getBackend().canCreateProfessionals && (
         <Modal title="Adicionar profissional" onClose={close}>
           <form onSubmit={onSubmit}>
             <Field label="Nome completo" htmlFor="pn">
