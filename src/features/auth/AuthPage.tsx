@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../../app/AuthContext'
 import { ErrorBox, Field } from '../../components/ui'
+import { MIN_PASSWORD_LENGTH } from '../../domain/password'
 import { INSURANCES, ROLE_LABEL, type Role } from '../../domain/types'
 import { errorMessage } from '../../services/errors'
 
@@ -128,12 +129,12 @@ function RegisterForm() {
           <Field label="E-mail" htmlFor="remail">
             <input id="remail" name="email" type="email" required autoComplete="email" />
           </Field>
-          <Field label="Senha (mínimo 8 caracteres)" htmlFor="rpassword">
+          <Field label={`Senha (mínimo ${MIN_PASSWORD_LENGTH} caracteres)`} htmlFor="rpassword">
             <input
               id="rpassword"
               name="password"
               type="password"
-              minLength={8}
+              minLength={MIN_PASSWORD_LENGTH}
               required
               autoComplete="new-password"
             />
